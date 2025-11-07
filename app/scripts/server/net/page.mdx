@@ -1,0 +1,126 @@
+# 🌐 Network Health Check Script
+
+## Overview
+This script performs a **basic network connectivity and port availability check** for a specified target machine.  
+It tests both **ICMP reachability** (via `ping`) and **SSH port accessibility** (via `netcat`), logging results with timestamps for historical tracking.
+
+---
+
+## Purpose
+The script provides lightweight health monitoring for remote servers or network devices by:
+- Checking if the host responds to ping requests  
+- Verifying whether port **22 (SSH)** is open  
+- Recording status results into a local log file with UTC timestamps  
+
+This makes it ideal for automated cron jobs, uptime checks, or monitoring routines.
+
+---
+
+## Script
+
+```bash
+#!/bin/bash
+
+
+PINGED_MACHINE=$1
+DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PING_STATUS=$(ping -t 1 -c 1 $PINGED_MACHINE 2>/dev/null | grep -c "transmitted")
+PORT_STATUS=$(netcat -zv $PINGED_MACHINE 22 2>&1 | grep -c succeeded)
+PING_STATUS_STRING=""
+PORT_STATUS_STRING=""
+
+
+if [[ $PING_STATUS -eq 1 ]];then
+	PING_STATUS_STRING="OK"
+elif [[ $PING_STATUS -eq 0 ]]; then
+	PING_STATUS_STRING="FAIL"
+fi;
+
+if [[ $PORT_STATUS -eq 1 ]];then
+	PORT_STATUS_STRING="OPEN"
+elif [[ $PORT_STATUS -eq 0 ]]; then
+	PORT_STATUS_STRING="CLOSED"
+fi;
+
+LOG="$DATE target=$PINGED_MACHINE ping=$PING_STATUS_STRING ssh_port=$PORT_STATUS_STRING"
+echo $LOG >> $HOME/logs/health.log
+```
+
+## Parameters
+
+| Parameter | Description | Required | Example |
+|------------|--------------|-----------|----------|
+| `PINGED_MACHINE` | Hostname or IP address of the target machine to check | ✅ | `server01.local` or `192.168.1.10` |
+
+---
+
+## Key Variables
+
+| Variable | Description |
+|-----------|--------------|
+| `PINGED_MACHINE` | The host being tested |
+| `DATE` | Current UTC timestamp in ISO 8601 format |
+| `PING_STATUS` | Result of ICMP ping test (`1` if successful, `0` if failed) |
+| `PORT_STATUS` | Result of SSH port (22) test (`1` if open, `0` if closed) |
+| `PING_STATUS_STRING` | Readable string version of ping status (`OK` / `FAIL`) |
+| `PORT_STATUS_STRING` | Readable string version of SSH port status (`OPEN` / `CLOSED`) |
+| `LOG` | Final formatted log entry string |
+| `~/logs/health.log` | Log file storing ongoing network check results |
+
+---
+
+## Workflow Summary
+
+1. **Input Validation**  
+   Accepts one argument: the target hostname or IP.  
+
+2. **Timestamp Generation**  
+   Captures the current UTC time in ISO 8601 format for consistent log entries.
+
+3. **Ping Test**  
+   Sends one ICMP packet (`ping -c 1`) to check reachability.  
+   - If successful → sets status to `OK`  
+   - If unsuccessful → sets status to `FAIL`
+
+4. **SSH Port Check**  
+   Uses `netcat` (`nc -zv`) to test TCP port **22** accessibility.  
+   - If the connection succeeds → sets status to `OPEN`  
+   - If it fails → sets status to `CLOSED`
+
+5. **Log Generation**  
+   Constructs a formatted line containing:
+    `<timestamp> target=<host> ping=<OK/FAIL> ssh_port=<OPEN/CLOSED>`
+
+
+6. **Result Storage**  
+Appends each log entry to `~/logs/health.log` for historical record keeping.
+
+---
+
+## Example Output
+
+```bash
+2025-11-07T12:05:32Z target=server01 ping=OK ssh_port=OPEN
+2025-11-07T12:10:32Z target=server02 ping=FAIL ssh_port=CLOSED
+```
+
+
+---
+
+## Use Cases
+
+- Continuous **network availability monitoring**
+- Simple **SSH port reachability tracking**
+- Automated cron-based **infrastructure health logging**
+- Lightweight alternative to full monitoring suites like Nagios or Zabbix
+
+---
+
+## Notes
+
+- Requires `ping` and `netcat (nc)` utilities to be installed.  
+- Designed for Linux environments with standard networking tools.  
+- Log files can be rotated or parsed for further analysis.  
+- Recommended to schedule periodic execution via `cron` or `systemd timer`.
+
+Example cron entry (runs every 5 minutes):

@@ -1,0 +1,88 @@
+# 🖥️ ClientCLI — JavaFX Graphical Command-Line Interface
+
+## Overview
+The **ClientCLI** class is a JavaFX-based graphical command-line interface (CLI) that allows users to interact with a remote command execution server (`ScriptServer`) through a network connection managed by `ScriptClient`.  
+It mimics the behavior of a traditional command-line terminal while providing the benefits of a modern GUI — such as styled output, input history, and smooth asynchronous execution.
+
+---
+
+## Purpose
+This client application is designed to provide a secure and interactive environment for executing server-side scripts or commands remotely.  
+It acts as the **frontend layer** of the system, enabling administrators or users to:
+- Send shell-like commands to a remote backend
+- View execution output or logs in real time
+- Maintain a history of executed commands for quick navigation
+- Operate with minimal delay via persistent network connections
+
+---
+
+## Key Features
+
+### 🧭 Command Input and History
+- Users can type commands into the input field.
+- Pressing **Enter** sends the command to the remote server.
+- The application maintains a **command history**, allowing navigation with the **Up** and **Down** arrow keys.
+- Commands are stored in memory and preserved throughout the session for user convenience.
+
+### 🪶 Output Display
+- The output from the remote server is displayed in a **scrollable, read-only console** area.
+- Messages are appended chronologically, emulating a terminal feed.
+- The UI uses a **dark theme** for better contrast and readability.
+- Output automatically scrolls to the latest message after each response.
+
+### ⚙️ Command Execution
+- Commands are executed asynchronously in a background thread to prevent the JavaFX UI from freezing.
+- The `CommandManager` class communicates with the `ScriptClient`, which sends the command to the `ScriptServer` via TCP.
+- Responses are streamed back to the GUI in near real time.
+
+### 💾 Server Communication
+- On startup, the client establishes a persistent socket connection to a remote server (default host: `server-vm`, port: `5000`).
+- Commands are serialized into plain text and sent line-by-line.
+- The server executes predefined shell scripts (based on the received command) and sends the results back.
+- The client displays this output directly in the interface.
+
+### 🧱 Layout and Styling
+- The application uses a **BorderPane** layout with the command output area on top and an input field at the bottom.
+- Visual appearance is controlled by an external CSS file (`cli-style.css`), providing a consistent theme.
+- The interface is designed for readability and a “developer console” aesthetic.
+
+---
+
+## Application Flow
+
+1. **Startup**
+   - JavaFX initializes the window.
+   - The client establishes a TCP connection to the `ScriptServer`.
+   - A startup banner is displayed, introducing the interface.
+
+2. **Command Input**
+   - The user types a command in the input field and presses Enter.
+   - The command is recorded in the session history.
+
+3. **Server Communication**
+   - The `CommandManager` sends the command to the `ScriptServer` using `ScriptClient`.
+   - The server executes the associated shell script and streams output back.
+
+4. **Output Display**
+   - The response is displayed in the `TextArea` console, formatted line-by-line.
+   - The scroll position updates automatically to show the newest output.
+
+5. **History Navigation**
+   - The user can press **Up** or **Down** arrows to cycle through previously executed commands.
+
+6. **Shutdown**
+   - When the user closes the window, the client sends an `"exit"` command to gracefully disconnect from the server.
+
+---
+
+## Parameters
+
+| Parameter | Description | Required | Default |
+|------------|-------------|-----------|----------|
+| *(none)* | The application takes no command-line arguments by default. Connection details are hardcoded but can be parameterized. | — | Host: `server-vm`, Port: `5000` |
+
+---
+
+## Output Example
+When connected, the application displays a header and processes typed commands. A typical session might look like:
+

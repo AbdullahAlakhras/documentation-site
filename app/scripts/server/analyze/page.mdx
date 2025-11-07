@@ -1,0 +1,129 @@
+# 🧮 Queue Worker Script — Continuous Background Processor
+
+## Overview
+This script functions as a **persistent background service** responsible for continuously monitoring and processing queued requests.  
+It runs under **systemd** and operates **24/7**, automatically detecting new `.req` files in the queue directory and processing them in real time.
+
+---
+
+## Purpose
+The script forms the backend processing engine of a queue-based file system.  
+Its primary role is to:
+- Detect new incoming request files (`.req`)
+- Identify and process the associated data payload (`.payload`)
+- Generate structured result reports
+- Log all processed activity for auditing and monitoring
+
+---
+
+##Script
+```bash
+#!/bin/bash
+
+q=~/queue
+r=~/results
+log=~/logs/worker.log
+
+for req in "$q"/*.req; do
+  [ -e "$req" ] || break
+
+  name=$(basename "$req" .req)
+  id="${name#REQ_}"
+
+  line=$(grep '^CLIENT_USER=' "$req" | head -n 1)
+  user="${line#*=}"
+  [ -z "$user" ] && user=$(grep '^USER=' "$req" | head -n 1 | cut -d= -f2)
+
+  line=$(grep -E '^(PAYLOAD_FILE|DATA_FILE)=' "$req" | head -n 1)
+  payload="${line#*=}"
+  [ -z "$payload" ] && payload="$q/$name.payload"
+
+  case "$payload" in
+    "~"/*) payload="${HOME}${payload#\~}";;
+  esac
+
+  read -r lines words bytes < <(wc -l -w -c < "$payload")
+
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  out="$r/RES_${id}.txt"
+
+  {
+    echo "RESULT for $id"
+    echo "USER=${user}"
+    echo "LINES=${lines}"
+    echo "WORDS=${words}"
+    echo "BYTES=${bytes}"
+    echo "PROCESSED_UTC=${now}"
+  } > "$out"
+
+  printf "%s ID=%s USER=%s LINES=%s WORDS=%s BYTES=%s FILE=%s\n" \
+    "$now" "$id" "$user" "$lines" "$words" "$bytes" "$payload" >> "$log"
+
+  rm -f "$req" "$payload"
+done
+
+exit 0
+
+```
+
+## Behavior Summary
+1. **Queue Monitoring**  
+   Constantly scans the `~/queue/` directory for new `.req` files created by upstream processes.
+
+2. **Metadata Extraction**  
+   Reads information about the client, payload file, and request ID from the request metadata.
+
+3. **Payload Handling**  
+   Locates and validates the data file linked to each request, even if it includes a relative or home (`~`) path.
+
+4. **Data Analysis**  
+   Calculates basic statistics such as total lines, words, and bytes for the provided payload file.
+
+5. **Result Generation**  
+   Creates a corresponding result file (`RES_<id>.txt`) inside the `~/results/` directory, containing all computed information and timestamps.
+
+6. **Logging**  
+   Appends each operation’s summary (ID, user, file size metrics, and timestamp) to a log file located at `~/logs/worker.log`.
+
+7. **Cleanup**  
+   Automatically deletes processed `.req` and `.payload` files to prevent duplication and maintain queue cleanliness.
+
+---
+
+## Key Directories and Files
+
+| Location | Description |
+|-----------|--------------|
+| `~/queue/` | Incoming `.req` and `.payload` files awaiting processing |
+| `~/results/` | Generated result files (`RES_*.txt`) |
+| `~/logs/worker.log` | Central log recording all processed jobs |
+
+---
+
+## Systemd Integration
+This script is configured to run as a **systemd-managed background service**.  
+It is always active, restarting automatically in case of failure or reboot.
+
+- **Startup Behavior:** Runs automatically on boot  
+- **Restart Policy:** Always restart if the process exits or fails  
+- **Execution Context:** Runs under a specified system user (e.g., `server`)  
+- **Output Management:** Logs are appended to `~/logs/worker.log`  
+
+---
+
+## Operational Characteristics
+
+| Attribute | Description |
+|------------|--------------|
+| **Mode** | Continuous background processing |
+| **Runtime** | 24/7 via systemd |
+| **Trigger** | New `.req` file detection |
+| **Output** | Results and logs |
+| **Resilience** | Automatically restarts on failure |
+| **Dependencies** | Requires directories: `~/queue`, `~/results`, `~/logs` |
+
+---
+
+## Summary
+The Queue Worker is a **reliable, autonomous background processor** that forms the backbone of the system’s request–response pipeline.  
+It ensures that every incoming request is processed promptly, results are generated accurately, and logs are maintained continuously without manual intervention.

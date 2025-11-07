@@ -1,0 +1,90 @@
+# File Compression and Remote Upload Script
+
+This script compresses a specified file, requests access authorization from a remote server, and—if accepted—uploads the compressed file for queued processing.
+
+---
+
+## Overview
+
+The purpose of this script is to securely send files to a designated **remote server** for processing.  
+It includes automatic compression, remote access validation, and conditional upload of the compressed file.
+
+---
+
+## Script
+
+```bash
+#!/bin/bash
+
+SERVER_HOSTNAME=$1
+FILE_PATH=$2
+ACCESS_CODE=$3
+REQUESTER_NAME=$(whoami)
+FILENAME=$(basename "$FILE_PATH")
+
+gzip -k "$FILE_PATH"
+COMPRESSED_FILE_PATH="$FILE_PATH.gz"
+chmod 664 "$COMPRESSED_FILE_PATH"
+
+SRV_RESPONSE=$(ssh "server@$SERVER_HOSTNAME" "bash /home/server/S25-01/server/srv_access_accept.sh '$REQUESTER_NAME' '$ACCESS_CODE' '$FILENAME'")
+echo "$SRV_RESPONSE"
+
+REQUEST_ID=$(echo "$SRV_RESPONSE" | grep -o 'REQ_[0-9_]*')
+
+if [[ $(echo "$SRV_RESPONSE" | grep -c "ACCEPT") -eq 1 ]]; then
+	scp -q "$COMPRESSED_FILE_PATH" "server@$SERVER_HOSTNAME:~/queue/$REQUEST_ID.payload" >/dev/null 2>&1
+fi
+```
+---
+
+## Parameters
+
+| Parameter | Description | Required | Example |
+|------------|--------------|-----------|----------|
+| `SERVER_HOSTNAME` | Hostname or IP address of the target server | ✅ | `server-vm` |
+| `FILE_PATH` | Full path to the file being sent | ✅ | `/home/user/data.csv` |
+| `ACCESS_CODE` | Access token used for authentication on the remote server | ✅ | `9f3a42bf` |
+
+---
+
+## Key Variables
+
+| Variable | Description |
+|-----------|-------------|
+| `REQUESTER_NAME` | Automatically set to the current system username (`whoami`) |
+| `FILENAME` | Extracted base name of the provided file |
+| `COMPRESSED_FILE_PATH` | Path of the generated `.gz` file after compression |
+| `SRV_RESPONSE` | Output received from the remote access script |
+| `REQUEST_ID` | Unique request identifier parsed from the server’s response |
+
+---
+
+## Workflow
+
+1. **Parameter Input**  
+   The script requires three command-line arguments: server hostname, file path, and access code.
+
+2. **Compression Stage**  
+   The specified file is compressed using `gzip` (retaining the original) and assigned readable permissions (`664`).
+
+3. **Server Access Validation**  
+   The script connects to the target server via SSH and invokes:  
+   `/home/server/S25-01/server/srv_access_accept.sh`  
+   passing along requester information, access code, and filename.
+
+4. **Server Response Handling**  
+   - The script prints the server’s response.  
+   - It extracts the request ID (e.g., `REQ_20251107_134512_1234`).
+
+5. **Conditional File Upload**  
+   If the server response includes `"ACCEPT"`, the compressed file (`.gz`) is securely transferred to:  
+   `~/queue/<REQUEST_ID>.payload` on the remote server using `scp`.
+
+---
+
+
+## Example Execution
+
+```bash
+$ ./upload_file.sh server-vm /home/user/data.csv 9f3a42bf
+ACCEPT REQ_20251107_134512_1234

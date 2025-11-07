@@ -1,0 +1,99 @@
+# System Load and Memory Monitor Script
+
+This script periodically reports the system’s **CPU load average** and **memory usage** at fixed one-minute intervals. It is designed for lightweight system monitoring or logging.
+
+---
+
+## Overview
+
+The script captures:
+- **Current UTC timestamp**
+- **System load averages** (1, 5, and 15 minutes)
+- **Memory usage** in megabytes (used vs total)
+
+It runs a defined number of loops, printing system metrics once per loop, pausing for one minute between each.
+
+---
+
+## Script
+```bash
+
+#!/bin/bash
+
+loops=${1:-2}
+i=1
+
+while [ $i -le $loops ]; do
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    load=$(cut -d' ' -f1-3 /proc/loadavg)
+    mem_used=$(free -m | awk '/Mem:/ {print $3}')
+    mem_total=$(free -m | awk '/Mem:/ {print $2}')
+    echo "[$timestamp] load=$load"
+    echo "mem_used=${mem_used}/${mem_total}MB"
+    if [ $i -lt $loops ]; then
+        sleep 60
+    fi
+    i=$((i+1))
+done
+
+echo "  done (loops=${loops})"
+exit 0
+```
+## Parameters
+
+| Parameter | Description | Required | Default | Example |
+|------------|--------------|-----------|----------|----------|
+| `loops` | Number of monitoring iterations (1 per minute) | ❌ | `2` | `./sysmon.sh 5` |
+
+---
+
+## Key Variables
+
+| Variable | Description |
+|-----------|-------------|
+| `timestamp` | UTC timestamp in ISO 8601 format (e.g., `2025-11-07T12:34:56Z`) |
+| `load` | Load averages for 1, 5, and 15 minutes, read from `/proc/loadavg` |
+| `mem_used` | Memory currently in use (MB) |
+| `mem_total` | Total system memory (MB) |
+| `loops` | Number of iterations; defaults to `2` if not specified |
+| `i` | Loop counter |
+
+---
+
+## Workflow
+
+1. **Loop Initialization**  
+   The loop runs from `1` to the number specified in `loops`.  
+   Default: 2 cycles if no argument is given.
+
+2. **Metric Collection**  
+   - Retrieves UTC time via `date -u`  
+   - Reads load averages from `/proc/loadavg`  
+   - Uses `free -m` and `awk` to get memory used and total memory
+
+3. **Output Format**  
+   For each loop iteration, prints:
+    - `[2025-11-07T12:34:56Z] load=0.20 0.18 0.15`
+    - `mem_used=1024/4096MB`
+
+4. **Delay Between Iterations**  
+Waits for 60 seconds (`sleep 60`) before the next loop unless it’s the last iteration.
+
+5. **Completion Message**  
+After all loops, the script prints:
+` done (loops=<N>)`
+
+
+---
+
+## Example Execution
+
+```bash
+$ ./sysmon.sh 3
+[2025-11-07T12:00:00Z] load=0.14 0.10 0.08
+mem_used=987/4096MB
+[2025-11-07T12:01:00Z] load=0.20 0.15 0.12
+mem_used=1002/4096MB
+[2025-11-07T12:02:00Z] load=0.18 0.16 0.14
+mem_used=1010/4096MB
+done (loops=3)

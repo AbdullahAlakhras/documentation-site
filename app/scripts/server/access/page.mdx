@@ -1,0 +1,166 @@
+# Client Request Authorization and Queue Registration Script
+
+This script authenticates client access requests using an **allowlist-based validation system**, logs both successful and failed attempts to a **Discord webhook**, and registers approved file-processing requests in a local **queue directory**.
+
+---
+
+## Overview
+
+The script validates an incoming client’s **access code**, issues a unique **request ID** for tracking, and records metadata for downstream processing. It provides real-time notifications via Discord for both valid and invalid requests.
+
+---
+
+```bash
+#!/bin/bash
+
+if [ $# -ne 3 ]; then
+  echo "Usage: $0 CLIENT_USER ACCESS_CODE FNAME"
+  exit 1
+fi
+
+
+client_user="$1"
+access_code="$2"
+fname="$3"
+
+
+ALLOWLIST="${HOME}/tokens/allowlist.txt"
+QUEUE_DIR="${HOME}/queue"
+
+WEBHOOK_URL="https://discord.com/api/webhooks/1436255476596604939/S-0WLyk52aCGk8vSq-hy0DC9YnKWiUXsFD0dSO2NuDE_c5BIwJ_AQwKxwZ9wxvgaaFpJ"
+
+
+if ! grep -Fxq "$access_code" "$ALLOWLIST" 2>/dev/null; then
+  echo "REJECT invalid_token"
+   curl -H "Content-Type: application/json" \
+       -X POST \
+       -d '{
+    "embeds": [
+      {
+        "title": "🚫 Invalid Access Code",
+        "description": "A client attempted to authenticate with an invalid token.",
+        "color": 15548997,
+        "fields": [
+          { "name": "👤 User", "value": "'"$client_user"'" },
+          { "name": "🔑 Access Code", "value": "'"$access_code"'" }
+        ],
+        "footer": { "text": "Mr. Logging Bot 🐧" }
+      }
+    ]
+  }' \
+  "$WEBHOOK_URL" >/dev/null 2>&1
+  exit 1
+fi
+
+
+
+
+date="$(date -u +%Y%m%d_%H%M%S)"
+randomnumber="$(printf '%04d' $((RANDOM % 10000)))"
+id="REQ_${date}_${randomnumber}"
+
+curl -H "Content-Type: application/json" \
+     -X POST \
+     -d '{
+  "embeds": [
+    {
+      "title": "✅ File Processing Started",
+      "color": 5763719,
+      "fields": [
+        { "name": "📂 Client", "value": "'"$client_user"'", "inline": true },
+        { "name": "🆔 Request ID", "value": "'"$id"'", "inline": true },
+        { "name": "🕓 Created (UTC)", "value": "'"$(date -u)"'" },
+        { "name": "🧾 Filename", "value": "'"$(basename -- "$fname")"'" }
+      ],
+      "footer": { "text": "Mr. Logging Bot 🐧" }
+    }
+  ]
+}' \
+"$WEBHOOK_URL" >/dev/null 2>&1
+
+
+req_file="${QUEUE_DIR}/${id}.req"
+payload_file="${QUEUE_DIR}/${id}.payload"
+
+
+created_utc="$(date -u +%FT%TZ)"
+cat > "$req_file" <<EOF
+ID=${id}
+CLIENT_USER=${client_user}
+CREATED_UTC=${created_utc}
+PAYLOAD_FILE=${payload_file}
+FILENAME=$(basename -- "$fname")
+EOF
+
+
+echo "ACCEPT ${id}"
+```
+
+## Parameters
+
+| Parameter | Description | Required | Example |
+|------------|--------------|-----------|----------|
+| `CLIENT_USER` | Identifier of the client making the request | ✅ | `alice` |
+| `ACCESS_CODE` | Token used for authentication; must be listed in `allowlist.txt` | ✅ | `9f3a42bf` |
+| `FNAME` | File name or path being submitted for processing | ✅ | `/home/alice/data.csv` |
+
+---
+
+## Key Files and Directories
+
+| Path | Description |
+|------|--------------|
+| `${HOME}/tokens/allowlist.txt` | Text file containing valid access codes, one per line |
+| `${HOME}/queue/` | Directory where `.req` and `.payload` files are created for queued processing |
+| `req_file` | Request metadata file (e.g., `REQ_20251107_134512_1234.req`) |
+| `payload_file` | Placeholder file for associated upload data |
+| `WEBHOOK_URL` | Discord webhook endpoint used for logging |
+
+---
+
+## Workflow
+
+1. **Argument Validation**  
+   Ensures three arguments are supplied. If not, displays usage and exits.
+
+2. **Access Code Verification**  
+   - Checks if the supplied `ACCESS_CODE` exists in the allowlist file.  
+   - If not found:
+     - Prints `REJECT invalid_token`
+     - Sends a Discord notification embed with a red ❌ warning.
+     - Exits immediately.
+
+3. **Unique Request ID Creation**  
+   - Builds a unique identifier of the form:  
+     `REQ_<YYYYMMDD_HHMMSS>_<RANDOM_4_DIGIT_NUMBER>`  
+   - Ensures each request is traceable and timestamped.
+
+4. **Successful Request Notification**  
+   Sends a green ✅ embed message to Discord with:
+   - Client name  
+   - Request ID  
+   - UTC timestamp  
+   - Submitted filename  
+
+5. **Queue Registration**  
+   Creates a `.req` file in the queue directory containing:
+   - `ID=<unique_request_id>`
+   - `CLIENT_USER=<client_name>`
+   - `CREATED_UTC=<UTC_timestamp>`
+   - `PAYLOAD_FILE=<path_to_payload>`
+   - `FILENAME=<original_filename>`
+
+## Example Execution
+
+```bash
+$ ./srv_access_accept.sh alice 9f3a42bf data.csv
+ACCEPT REQ_20251107_134512_1234
+```
+
+## Result:
+
+- A .req file is created in ~/queue/.
+
+- Discord logs the successful authorization.
+
+- The client can now upload their corresponding .payload file.

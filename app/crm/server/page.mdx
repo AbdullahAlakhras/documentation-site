@@ -1,0 +1,92 @@
+# 🖥️ ScriptServer — Remote Script Execution Server
+
+## Overview
+The **`ScriptServer`** is a lightweight Java-based TCP server that listens for incoming client commands on port **5000** and executes corresponding **server-side shell scripts**.  
+It is designed to act as a command dispatcher — mapping received commands to predefined scripts and streaming their output back to the client in real time.
+
+---
+
+## 🎯 Purpose
+This component provides a controlled interface for triggering server-side maintenance or analysis scripts remotely.  
+Clients connect via TCP, send a textual command (e.g., `analyze file1.log`), and receive the script’s console output directly over the same socket.
+
+---
+
+## ⚙️ Key Features
+- Persistent TCP listener on **port 5000**
+- Threaded handling of multiple client connections
+- Command-to-script mapping for secure execution
+- Real-time relay of script output to the requesting client
+- Graceful resource management and error handling
+
+---
+
+## 2 — Server Initialization
+
+```java
+ServerSocket server = new ServerSocket(5000);
+System.out.println("[SERVER] Listening on port 5000...");
+
+while (true) {
+    Socket socket = server.accept();
+    new Thread(() -> handleClient(socket)).start();
+}
+```
+
+#### Description:
+- Creates a TCP server socket on port 5000 and continuously accepts new client connections.
+- Each connection is handled in a separate thread to support concurrent clients.
+
+## 3 - Client Request Handling
+
+```java
+String input = in.readLine(); // e.g. "analyze --fast"
+String[] parts = input.trim().split("\\s+", 2);
+String command = parts[0];
+String args = parts.length > 1 ? parts[1] : "";
+```
+
+#### Description:
+- Reads and parses the client’s input line into a command and optional arguments.
+
+## 4 — Script Execution
+```java
+List<String> cmd = new ArrayList<>();
+cmd.add("/bin/bash");
+cmd.add(scriptPath);
+if (!args.isEmpty()) {
+    cmd.addAll(Arrays.asList(args.split("\\s+")));
+}
+
+ProcessBuilder pb = new ProcessBuilder(cmd);
+pb.redirectErrorStream(true);
+Process process = pb.start();
+```
+
+#### Description:
+- Constructs and starts a shell process to run the script corresponding to the client’s command, passing along any provided arguments.
+
+## 5 — Output Streaming
+```java
+try (BufferedReader procOut = new BufferedReader(
+        new InputStreamReader(process.getInputStream()))) {
+    String line;
+    while ((line = procOut.readLine()) != null) {
+        out.println(line);
+    }
+}
+```
+
+#### Description:
+- Captures the running script’s stdout and streams it line-by-line back to the connected client in real time.
+
+## 6 — Error Handling & Cleanup
+
+```java
+process.waitFor();
+System.out.println("[SERVER] Finished command: " + command);
+```
+
+#### Description:
+- Waits for script completion and logs activity on the server side.
+- Ensures the socket is closed after each session to prevent resource leaks.

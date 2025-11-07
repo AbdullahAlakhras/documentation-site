@@ -1,0 +1,77 @@
+# File Permission Fix Script
+
+This Bash script scans a directory for files with **world-writable permissions (777)**, changes them to **700**, and logs the changes.
+
+---
+
+## Features
+
+- Scan a specified directory (or `$HOME` by default)
+- Detect files with permissions `0777`
+- Change permissions to `700` (owner only)
+- Log changes to `perm_changes.log`
+- Print a summary of total changes
+
+## Prerequisites
+
+- Bash shell
+- `find`, `stat`, and `chmod` commands
+- Write permissions in the directory being scanned
+
+---
+
+## Script
+
+```bash
+#!/bin/bash
+
+# Directory to scan; default is $HOME
+rootdir=${1:-$HOME}
+
+# Log file
+logfile="perm_changes.log"
+
+# Counter for changed files
+count=0
+
+# Scan for files with 0777 permissions
+while IFS= read -r file; do
+    # Get old permissions
+    oldperm=$(stat -c "%a" "$file")
+
+    # Change permissions to 700
+    chmod 700 "$file" 2>/dev/null
+
+    # Log the change
+    echo "fixed:$file $oldperm->700" | tee -a "$logfile"
+
+    # Increment counter
+    count=$((count+1))
+done < <(find "$rootdir" -type f -perm 0777 2>/dev/null)
+
+# Print and log summary
+echo "summary: changed=$count"
+echo "summary: changed=$count" >> "$logfile"
+
+exit 0
+
+```
+---
+
+## How It Works
+
+1. **Directory Selection**  
+   The script uses the first argument as the root directory; if none is provided, it defaults to `$HOME`.
+
+2. **Finding Files**  
+   Uses `find` to locate all files with permission `0777`.
+
+3. **Logging and Fixing**  
+   For each file:
+   - Reads current permissions using `stat`
+   - Changes permissions to `700` using `chmod`
+   - Logs old and new permissions to `perm_changes.log`
+
+4. **Summary**  
+   At the end, prints and logs the total number of files modified.
+

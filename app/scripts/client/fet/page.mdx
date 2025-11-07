@@ -1,0 +1,106 @@
+# Remote Request Status & Result Retrieval Script
+
+This script checks the processing status of a previously submitted request on a remote server and, if completed, retrieves the corresponding result file.
+
+---
+
+## Overview
+
+The script interacts with a remote processing server to determine whether a given **request ID** has finished processing, is still in progress, or cannot be found.  
+If the request has completed, it automatically downloads the generated result file to the local system.
+
+---
+
+## Script
+
+```bash
+#!/bin/bash
+
+
+SERVER_HOSTNAME=$1
+REQUEST_ID=$2
+
+if [[ -z $SERVER_HOSTNAME || -z $REQUEST_ID ]]; then
+    echo "MISSING EITHER <HOSTNAME> <REQUEST_ID>"
+    exit 1
+fi
+
+REMOTE_RESULTS="results/RES_${REQUEST_ID}.txt"
+REMOTE_QUEUE_REQ="queue/REQ_${REQUEST_ID}.req"
+REMOTE_QUEUE_PAYLOAD="queue/REQ_${REQUEST_ID}.payload"
+LOCAL_FILE="$HOME/S25-01/results/${REQUEST_ID}.txt"
+
+
+if ssh "server@$SERVER_HOSTNAME" "[ -f $REMOTE_RESULTS ]"; then
+    scp "server@$SERVER_HOSTNAME:$REMOTE_RESULTS" "$LOCAL_FILE"
+    echo "READY results/$REQUEST_ID.txt"
+
+elif ssh "server@$SERVER_HOSTNAME" "[ -f $REMOTE_QUEUE_REQ ] || [ -f $REMOTE_QUEUE_PAYLOAD ]"; then
+    echo "PROCESSING"
+    
+else
+    echo "MISSING"
+fi
+
+```
+
+## Parameters
+
+| Parameter | Description | Required | Example |
+|------------|--------------|-----------|----------|
+| `SERVER_HOSTNAME` | Hostname or IP address of the target server | ✅ | `server-vm` |
+| `REQUEST_ID` | Unique identifier of the processing request | ✅ | `REQ_20251107_134512_1234` |
+
+---
+
+## Key Variables
+
+| Variable | Description |
+|-----------|-------------|
+| `REMOTE_RESULTS` | Path on the server where the result file is expected: `results/RES_<REQUEST_ID>.txt` |
+| `REMOTE_QUEUE_REQ` | Expected request metadata file: `queue/REQ_<REQUEST_ID>.req` |
+| `REMOTE_QUEUE_PAYLOAD` | Expected uploaded payload file: `queue/REQ_<REQUEST_ID>.payload` |
+| `LOCAL_FILE` | Destination path on the local machine for saving the downloaded results: `$HOME/S25-01/results/<REQUEST_ID>.txt` |
+
+---
+
+## Workflow
+
+1. **Parameter Check**  
+   The script verifies that both `SERVER_HOSTNAME` and `REQUEST_ID` are provided.  
+   If either is missing, it exits with an error message.
+
+2. **Result Availability Check**  
+   Uses `ssh` to check if the remote result file `results/RES_<REQUEST_ID>.txt` exists.  
+   - If found, it is copied locally via `scp`.  
+   - The script outputs:  
+     ```
+     READY results/<REQUEST_ID>.txt
+     ```
+
+3. **Processing Check**  
+   If no result file is found but one or both queue files (`.req` or `.payload`) still exist,  
+   it indicates that the request is **still processing**.  
+   The script outputs:  
+
+4. **Missing Request Handling**  
+If neither the result nor queue files exist, the request is assumed missing or invalid.  
+The script outputs:  
+
+
+---
+
+## Example Execution
+
+```bash
+$ ./get_status.sh server-vm REQ_20251107_134512_1234
+READY results/REQ_20251107_134512_1234.txt
+
+
+$ ./get_status.sh server-vm REQ_20251107_134512_1234
+PROCESSING
+
+
+$ ./get_status.sh server-vm REQ_20251107_134512_1234
+MISSING
+```

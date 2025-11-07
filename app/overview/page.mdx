@@ -1,0 +1,76 @@
+# 🌐 Project Overview — Distributed Command Execution System
+
+## 🧭 Summary
+This project implements a **distributed command execution and monitoring system** consisting of one central **server VM** and two **client VMs**.  
+It enables remote command processing, file transfer, and status reporting through a secure, script-based backend and a JavaFX-powered client interface.
+
+The setup allows multiple clients to send requests or scripts to the central server, which executes them, processes outputs, and returns structured results — all while maintaining operational logs and system health checks.
+
+---
+
+## 🏗️ System Architecture
+
+### 🖥️ Virtual Machines Overview
+
+| Role | Hostname | Username | Password | Description |
+|------|-----------|-----------|-----------|--------------|
+| **Server VM** | `server-vm` | `server` | `123` | Central command processor and script execution node. |
+| **Client VM 1** | `client-vm` | `client` | `123` | User-facing workstation running the GUI client (JavaFX CLI). |
+| **Client VM 2** | `client2-vm` | `client2` | `123` | Secondary client for multi-user testing and distributed operations. |
+
+---
+
+## 🧩 Components
+
+### 🧱 1. Server Side (`server-vm`)
+The **server** acts as the core of the system — receiving, processing, and responding to client requests.
+
+**Key Elements:**
+- **`ScriptServer.java`**  
+  - Runs a TCP server on port `5000`.
+  - Listens for incoming commands from clients.
+  - Maps command strings (e.g., `analyze`, `deploy`) to corresponding shell scripts.
+  - Executes scripts on demand and streams the output back to clients.
+- **Shell Scripts**  
+  Located in `/home/server/S25-01/server/` and perform automated tasks such as:
+  - File validation and queue handling  
+  - Log collection and system health metrics  
+  - Process monitoring and analysis  
+- **Systemd Worker Service**  
+  - Runs `worker.sh` continuously (24/7) to process queued tasks.
+  - Generates result files and logs under `/home/server/results/`.
+
+
+---
+
+### 💻 2. Client Side (`client-vm`, `client2-vm`)
+Each client acts as a **remote operator** that can send commands to the server and view responses interactively.
+
+**Key Elements:**
+- **`ClientCLI.java` (JavaFX App)**  
+  Provides a terminal-like GUI for command input and result display.
+- **`ScriptClient.java`**  
+  Handles TCP socket communication with the server.
+- **`CommandManager.java`** *(helper class)*  
+  Interfaces between the UI and the networking layer to send user commands and receive responses.
+
+**Typical Command Flow:**
+1. User launches the **ClientCLI** GUI.
+2. The app automatically connects to `server-vm:5000`.
+3. User types a command
+4. **Client retrieves results** automatically or on request, displaying the summary in the GUI.
+
+---
+
+## 🧭 Summary
+
+- The **server VM** acts as the **central controller**.
+- The **clients** (two VMs) act as **command initiators**.
+- Communication uses **TCP (port 5000)** and **SCP** for file transfer.
+- **Worker daemon** runs continuously to process tasks 24/7.
+- Results are logged, timestamped, and easily retrievable by each client.
+
+This distributed design allows multiple clients to execute commands concurrently while ensuring reliable job processing and isolation on the server side.
+
+
+

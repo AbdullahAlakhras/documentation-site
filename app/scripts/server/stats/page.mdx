@@ -1,0 +1,130 @@
+# 📊 Log Statistics Analyzer Script
+
+## Overview
+This script analyzes a structured text log (`text.txt`) and computes simple statistics related to job durations and user activity.  
+It scans for entries containing `CLIENT_USER=` and `DURATION_MS=` to calculate performance metrics and identify the most active user.
+
+---
+
+## Purpose
+The goal of this script is to:
+- Count how many jobs have been recorded in a log file  
+- Compute the **average job duration (in milliseconds)**  
+- Determine which user appears most frequently in the logs  
+
+It is useful for quick operational insights and activity monitoring in systems that track per-user request performance.
+
+---
+## Script
+```bash
+#!/bin/bash
+
+FILE="$HOME/text.txt"
+
+TOTAL=0
+COUNT=0
+declare -A USER_COUNTS   
+
+while IFS= read -r line; do
+  if [[ $line == *"CLIENT_USER="* ]]; then
+    USER=$(echo "$line" | grep -oP 'CLIENT_USER=\K\w+')
+  fi
+
+  if [[ $line == *"DURATION_MS="* ]]; then
+    DURATION=$(echo "$line" | grep -oP 'DURATION_MS=\K[0-9]+')
+    ((COUNT++))
+    ((TOTAL+=DURATION))
+
+    
+    ((USER_COUNTS[$USER]++))
+  fi
+done < "$FILE"
+
+
+if (( COUNT > 0 )); then
+  AVG=$((TOTAL / COUNT))
+else
+  AVG=0
+fi
+
+
+TOP_USER="none"
+MAX=0
+for user in "${!USER_COUNTS[@]}"; do
+  if (( USER_COUNTS[$user] > MAX )); then
+    MAX=${USER_COUNTS[$user]}
+    TOP_USER=$user
+  fi
+done
+
+echo "jobs=$COUNT avg_time=$AVG top_user=$TOP_USER"
+```
+
+## Parameters
+
+| Parameter | Description | Required | Default |
+|------------|-------------|-----------|----------|
+| *(none)* | This script takes no command-line parameters. It reads from a fixed file path. | — | — |
+
+---
+
+## Key Variables
+
+| Variable | Description |
+|-----------|--------------|
+| `FILE` | Path to the log file being analyzed (`~/text.txt`) |
+| `TOTAL` | Cumulative sum of all job durations found |
+| `COUNT` | Total number of jobs processed |
+| `USER_COUNTS` | Associative array tracking job counts per user |
+| `AVG` | Calculated average duration of all jobs |
+| `TOP_USER` | Username with the highest job count |
+
+---
+
+## Workflow
+
+1. **Initialization**  
+   The script initializes counters and declares an associative array to store per-user statistics.
+
+2. **Line-by-Line Processing**  
+   Each line in the log file is read sequentially:
+   - When `CLIENT_USER=` is detected, the username is extracted.  
+   - When `DURATION_MS=` appears, the duration is added to the total and the job count is incremented.
+
+3. **Average Calculation**  
+   After processing, it computes the average duration by dividing the total duration by the number of jobs.
+
+4. **Top User Identification**  
+   It scans the user count array to find the user who has submitted or executed the most jobs.
+
+5. **Output Summary**  
+   Displays a concise report showing:
+    `jobs=<total_jobs> avg_time=<average_duration_ms> top_user=<username>`
+
+
+# Output Example
+
+```bash
+Example terminal output after processing the log:
+
+jobs=45 avg_time=382 top_user=alice
+```
+
+
+---
+
+## Use Cases
+
+- Monitoring average job duration over time  
+- Identifying the most active system users  
+- Generating summary metrics for performance dashboards  
+- Integrating into scheduled cron tasks for periodic analysis  
+
+---
+
+## Notes
+
+- The script assumes that each `DURATION_MS=` line follows a valid `CLIENT_USER=` entry.  
+- Log entries must contain `CLIENT_USER=` and `DURATION_MS=` in the expected format.  
+- If no valid jobs are found, the output defaults to `jobs=0 avg_time=0 top_user=none`.  
+- Designed to be lightweight, fast, and suitable for periodic automation or integration in data pipelines.

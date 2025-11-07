@@ -1,0 +1,86 @@
+# 💻 ScriptClient — Java TCP Client for ScriptServer
+
+## Overview
+The **`ScriptClient`** class provides a simple and reusable Java client interface for communicating with the `ScriptServer` over TCP.  
+It is typically used by a **JavaFX frontend** to send remote commands and receive script output from the backend server in real time.
+
+---
+
+## 🎯 Purpose
+This client establishes a socket connection to a remote `ScriptServer`, sends a command string, waits for the script output, and returns the response.  
+It abstracts all network communication so that higher-level applications (e.g., GUI dashboards) can focus on interaction and presentation logic.
+
+---
+
+## ⚙️ Key Features
+- Easy connection setup (`connect(host, port)`)
+- Safe command transmission and output retrieval
+- Automatic socket and stream cleanup
+- Compatible with JavaFX or CLI interfaces
+- Logs connection lifecycle for debugging
+
+---
+
+## 🧩 Snippet 1 — Connection Setup
+
+```java
+public void connect(String host, int port) throws IOException {
+    socket = new Socket(host, port);
+    out = new PrintWriter(socket.getOutputStream(), true);
+    in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    System.out.println("[Client] Connected to server " + host + ":" + port);
+}
+```
+
+#### Description:
+- Establishes a TCP connection to the specified host and port.
+- Initializes both input (BufferedReader) and output (PrintWriter) streams for bi-directional communication.
+
+## 2 — Sending a Command
+```java
+public String sendCommand(String command) throws IOException {
+    if (socket == null || socket.isClosed()) {
+        throw new IOException("Not connected to server.");
+    }
+
+    out.println(command);
+
+    StringBuilder response = new StringBuilder();
+    String line;
+    while ((line = in.readLine()) != null) {
+        response.append(line).append("\n");
+        if (!in.ready()) break;
+    }
+
+    return response.toString().trim();
+}
+```
+
+#### Description:
+- Sends a single text-based command to the connected server (e.g., deploy --env=prod).
+- Reads and aggregates all response lines until no more data is available.
+
+## 3 — Disconnecting Cleanly
+```java
+public void close() throws IOException {
+    if (out != null) out.close();
+    if (in != null) in.close();
+    if (socket != null && !socket.isClosed()) socket.close();
+    System.out.println("[Client] Disconnected from server.");
+}
+```
+
+#### Description:
+- Safely closes all I/O streams and the underlying socket.
+- Ensures that the connection is properly released to prevent resource leaks.
+
+## 4 — Example Usage
+```java
+ScriptClient client = new ScriptClient();
+client.connect("server-vm-ip", 5000);
+
+String result = client.sendCommand("analyze /var/log/app.log");
+System.out.println("Server response:\n" + result);
+
+client.close();
+```

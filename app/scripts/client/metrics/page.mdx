@@ -1,0 +1,88 @@
+# System Metrics Collection Script
+
+This Bash script collects system metrics including **load average**, **memory usage**, and the **top 5 CPU-consuming processes**, then saves the data to a file and transfers it to a remote server.
+
+---
+
+## Features
+
+- Capture current **date and time** (UTC)
+- Retrieve **load average**
+- Retrieve **memory usage**
+- List **top 5 processes by CPU usage**
+- Save metrics to a timestamped file
+- Transfer the file to a remote server using `scp`
+
+---
+
+## Prerequisites
+
+- Bash shell
+- `awk`, `grep`, `ps`, `uptime`, `free` commands
+- SSH access to remote server for `scp`
+
+---
+
+## Script
+
+```bash
+#!/bin/bash
+
+TIME=$(date -u)
+LOAD_AVERAGE=$(uptime | grep -oP "load average: [0-9., ]+")
+MEMORY_USAGE=$(free -m | awk 'NR==2 {printf "MEMORY_USAGE: %d MB (%.1f%%)\n", $3, $3*100/$2}')
+TOP_FIVE=$(ps aux | sort -nrk 3,3 | head -n 5)
+
+STAMP_TIME=$(date +"%Y%m%d")
+FILE_PATH="$HOME/S25-01/tmp/metrics_${STAMP_TIME}_$((RANDOM % 10000 + 10000)).txt"
+
+touch $FILE_PATH
+
+echo "HOSTNAME=$HOSTNAME" >> $FILE_PATH
+echo "TIME:$TIME" >> $FILE_PATH
+echo $LOAD_AVERAGE >> $FILE_PATH
+echo $MEMORY_USAGE >> $FILE_PATH
+echo "TOP 5 PROCESSES" >> $FILE_PATH
+echo "$TOP_FIVE" >> $FILE_PATH
+
+scp "$FILE_PATH" "server@server-vm:~/results"
+```
+
+
+## How It Works
+
+1. **Time & Load Average**  
+   Captures the UTC time and system load average using `date` and `uptime`.
+
+2. **Memory Usage**  
+   Uses `free -m` and `awk` to calculate memory used and percentage used.
+
+3. **Top 5 CPU Processes**  
+   Lists processes sorted by CPU usage with `ps aux` and `sort`.
+
+4. **File Creation**  
+   Generates a uniquely named file in `$HOME/S25-01/tmp/`.
+
+5. **Remote Transfer**  
+   Uses `scp` to securely copy the file to `server@server-vm:~/results`.
+
+
+
+
+---
+## Example Output
+
+- HOSTNAME: `myserver`
+- TIME: `Thu Nov 7 14:30:00 UTC 2025`
+- Load Average: `0.12, 0.10, 0.05`
+- MEMORY_USAGE: `2048 MB (50.0%)`
+
+### TOP 5 PROCESSES
+
+| USER | PID | %CPU | %MEM | VSZ | RSS | TTY | STAT | START | TIME | COMMAND |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| root | 1 | 0.5 | 1.2 | 123456 | 23456 | ? | Ss | 12:00 | 0:01 | systemd |
+| userX | 452 | 0.2 | 0.8 | 98765 | 18765 | pts/0 | R+ | 12:05 | 0:01 | bash |
+| www-data | 889 | 0.1 | 0.5 | 54321 | 10321 | ? | S | 12:00 | 0:00 | apache2 |
+| root | 124 | 0.0 | 0.3 | 4567 | 567 | ? | S | 12:00 | 0:00 | kworker/0:1 |
+| userY | 901 | 0.0 | 0.1 | 3456 | 456 | pts/1 | S | 12:10 | 0:00 | sshd |
